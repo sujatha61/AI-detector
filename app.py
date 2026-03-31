@@ -2,19 +2,31 @@ import streamlit as st
 from PIL import Image
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torchvision import transforms
 import os
 
 # ----------------------------
-st.title("🖼️ AI vs Real Image Detector")
+# UI Style
+st.markdown("""
+    <style>
+    .stApp {
+        background: darkorange;
+        color: black;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
 # ----------------------------
-# Device (force CPU)
-device = "cpu"
+st.title("🖼️ Real vs AI-Generated Image Detection")
 
 # ----------------------------
-# Model path
+# Path
 model_path = "cnn_model.pth"
+
+# ----------------------------
+# Device (FORCE CPU for cloud)
+device = "cpu"
 
 # ----------------------------
 # Transform
@@ -37,7 +49,7 @@ class SimpleCNN(nn.Module):
 
     def forward(self,x):
         x = self.conv(x)
-        x = x.view(x.size(0),-1)
+        x = x.view(x.size(0), -1)
         return self.fc(x)
 
 # ----------------------------
@@ -53,27 +65,37 @@ model = load_model()
 
 # ----------------------------
 # Prediction
-def predict(image):
-    img = transform(image).unsqueeze(0)
+def predict_image(image):
+    img_tensor = transform(image).unsqueeze(0)
 
     with torch.no_grad():
-        outputs = model(img)
-        _, pred = torch.max(outputs, 1)
+        logits = model(img_tensor)
+        probs = F.softmax(logits, dim=1)
+        pred = torch.argmax(probs, dim=1).item()
+        conf = probs[0][pred].item()
 
-    return "AI-Generated" if pred.item() == 1 else "Real"
+    return pred, conf
 
 # ----------------------------
 # Upload
-uploaded_file = st.file_uploader("Upload Image", type=["jpg","png","jpeg"])
+uploaded_file = st.file_uploader("Upload an image", type=['jpg','jpeg','png'])
 
 if uploaded_file is not None:
-    image = Image.open(uploaded_file).convert("RGB")
+    image = Image.open(uploaded_file).convert('RGB')
 
-    result = predict(image)
+    pred, conf = predict_image(image)
 
-    st.image(image, caption="Uploaded Image", use_column_width=True)
+    col1, col2 = st.columns([1.2, 1])
 
-    if result == "AI-Generated":
-        st.error("AI-Generated Image")
-    else:
-        st.success("Real Image")
+    with col1:
+        st.subheader("📊 Detection Result")
+
+        if pred == 1:
+            st.error("🚨 AI-Generated Image")
+        else:
+            st.success("✅ Real Image")
+
+        st.info(f"Confidence Score: {conf*100:.2f}%")
+
+    with col2:
+        st.image(image, caption="Uploaded Image", width=350)
