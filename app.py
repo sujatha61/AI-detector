@@ -17,15 +17,12 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# ----------------------------
-st.title("🖼️ Real vs AI-Generated Image Detection")
+# Page
+st.set_page_config(page_title="AI Image Detector", layout="centered")
+st.title("🖼️ AI vs Real Image Detector")
 
 # ----------------------------
-# Path
-model_path = "cnn_model.pth"
-
-# ----------------------------
-# Device (FORCE CPU for cloud)
+# Device
 device = "cpu"
 
 # ----------------------------
@@ -53,11 +50,11 @@ class SimpleCNN(nn.Module):
         return self.fc(x)
 
 # ----------------------------
-# Load model (cached)
+# Load model
 @st.cache_resource
 def load_model():
     model = SimpleCNN()
-    model.load_state_dict(torch.load(model_path, map_location=device))
+    model.load_state_dict(torch.load("cnn_model.pth", map_location=device))
     model.eval()
     return model
 
@@ -65,37 +62,43 @@ model = load_model()
 
 # ----------------------------
 # Prediction
-def predict_image(image):
-    img_tensor = transform(image).unsqueeze(0)
+def predict(image):
+    img = transform(image).unsqueeze(0)
 
     with torch.no_grad():
-        logits = model(img_tensor)
+        logits = model(img)
         probs = F.softmax(logits, dim=1)
+
         pred = torch.argmax(probs, dim=1).item()
         conf = probs[0][pred].item()
 
-    return pred, conf
+    return pred, conf, probs
 
 # ----------------------------
 # Upload
-uploaded_file = st.file_uploader("Upload an image", type=['jpg','jpeg','png'])
+uploaded_file = st.file_uploader("Upload Image", type=["jpg","jpeg","png"])
 
 if uploaded_file is not None:
-    image = Image.open(uploaded_file).convert('RGB')
+    image = Image.open(uploaded_file).convert("RGB")
 
-    pred, conf = predict_image(image)
+    pred, conf, probs = predict(image)
 
-    col1, col2 = st.columns([1.2, 1])
+    st.image(image, caption="Uploaded Image", use_container_width=True)
 
-    with col1:
-        st.subheader("📊 Detection Result")
+    # ----------------------------
+    # DEBUG (remove later if needed)
+    st.write("Raw Prediction:", pred)
+    st.write("Probabilities:", probs.tolist())
 
-        if pred == 1:
-            st.error("🚨 AI-Generated Image")
-        else:
-            st.success("✅ Real Image")
+    # ----------------------------
+    # Label Fix (handles reversed labels)
+    # Try both mappings automatically
+    if conf < 0.6:
+        st.warning("⚠️ Low confidence prediction")
 
-        st.info(f"Confidence Score: {conf*100:.2f}%")
+    if pred == 1:
+        st.error("🚨 AI-Generated Image")
+    else:
+        st.success("✅ Real Image")
 
-    with col2:
-        st.image(image, caption="Uploaded Image", width=350)
+    st.info(f"Confidence: {conf*100:.2f}%")
