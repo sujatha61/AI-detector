@@ -1,0 +1,9 @@
+streamlit
+torch
+torchvision
+timm
+open-clip-torch
+opencv-python
+matplotlib
+umap-learn
+Pillow
