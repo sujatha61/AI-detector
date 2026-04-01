@@ -2,5 +2,3 @@ streamlit
 torch
 torchvision
 pillow
-smtplib
-random
