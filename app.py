@@ -9,7 +9,7 @@ import smtplib
 
 # ----------------------------
 # EMAIL CONFIG (USE APP PASSWORD)
-SENDER_EMAIL = "your_email@gmail.com"
+SENDER_EMAIL = "sujatha6153@gamil.com"
 APP_PASSWORD = "mkfr lmoe rwyw rjtz"  # 🔴 Use Gmail App Password
 
 
