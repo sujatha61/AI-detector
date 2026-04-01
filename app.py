@@ -10,8 +10,8 @@ from sendgrid.helpers.mail import Mail
 
 # ----------------------------
 # CONFIG (ADD YOUR DETAILS)
-SENDGRID_API_KEY = "XUS7FBA8JNH62DU415MGXFQJ"
-SENDER_EMAIL = "sujatha6153@gmail.com"
+SENDGRID_API_KEY = st.secrets["SENDGRID_API_KEY"]
+SENDER_EMAIL = st.secrets["SENDER_EMAIL"]
 
 # ----------------------------
 # UI Style
