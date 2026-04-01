@@ -5,17 +5,15 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import transforms
 import random
-from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail
+import smtplib
 
 # ----------------------------
-# CONFIG (ADD YOUR DETAILS)
-SENDGRID_API_KEY = st.secrets["SENDGRID_API_KEY"]
-SENDER_EMAIL = st.secrets["SENDER_EMAIL"]
+# EMAIL CONFIG (USE APP PASSWORD)
+SENDER_EMAIL = "your_email@gmail.com"
+APP_PASSWORD = "mkfr lmoe rwyw rjtz"  # 🔴 Use Gmail App Password
 
-# ----------------------------
+
 # UI Style
-st.set_page_config(page_title="AI Image Detector", layout="centered")
 st.markdown("""
     <style>
     .stApp {
@@ -26,58 +24,65 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ----------------------------
-# OTP FUNCTIONS
-def generate_otp():
-    return str(random.randint(100000, 999999))
+# SEND OTP FUNCTION
+def send_otp(receiver_email):
+    otp = str(random.randint(100000, 999999))
 
-def send_otp_email(to_email, otp):
-    message = Mail(
-        from_email=SENDER_EMAIL,
-        to_emails=to_email,
-        subject="Your OTP Code",
-        html_content=f"<strong>Your OTP is: {otp}</strong>"
-    )
     try:
-        sg = SendGridAPIClient(SENDGRID_API_KEY)
-        sg.send(message)
-        return True
-    except Exception as e:
-        print(e)
-        return False
+        server = smtplib.SMTP("smtp.gmail.com", 587)
+        server.starttls()
+        server.login(SENDER_EMAIL, APP_PASSWORD)
+
+        message = f"Subject: OTP Verification\n\nYour OTP is: {otp}"
+        server.sendmail(SENDER_EMAIL, receiver_email, message)
+        server.quit()
+
+        return otp
+    except:
+        return None
 
 # ----------------------------
-# SESSION
+# UI CONFIG
+st.set_page_config(page_title="AI Detector", layout="centered")
+
+# ----------------------------
+# SESSION STATE
 if "otp_sent" not in st.session_state:
     st.session_state.otp_sent = False
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
 # ----------------------------
-# LOGIN FLOW
+# LOGIN PAGE
 if not st.session_state.otp_sent:
-    st.title("🔐 Login with Email")
-    email = st.text_input("Enter your Email")
+    st.title("🔐 Login")
+
+    email = st.text_input("Enter Email")
 
     if st.button("Send OTP"):
-        otp = generate_otp()
-        st.session_state.otp = otp
-        st.session_state.email = email
+        otp = send_otp(email)
 
-        if send_otp_email(email, otp):
+        if otp:
+            st.session_state.otp = otp
+            st.session_state.email = email
             st.session_state.otp_sent = True
-            st.success("OTP sent successfully ✅")
+            st.success("OTP sent ✅")
         else:
             st.error("Failed to send OTP ❌")
 
+# ----------------------------
+# OTP VERIFY
 elif not st.session_state.logged_in:
     st.title("📩 Enter OTP")
-    otp_input = st.text_input("Enter OTP")
+
+    user_otp = st.text_input("Enter OTP")
 
     if st.button("Verify"):
-        if otp_input == st.session_state.otp:
+        if user_otp == st.session_state.otp:
             st.session_state.logged_in = True
+            st.success("Login successful ✅")
         else:
-            st.error("Invalid OTP ❌")
+            st.error("Wrong OTP ❌")
 
 # ----------------------------
 # MAIN APP
@@ -92,7 +97,8 @@ if st.session_state.logged_in:
         transforms.ToTensor(),
     ])
 
-    # CNN MODEL
+    # ----------------------------
+    # MODEL
     class SimpleCNN(nn.Module):
         def __init__(self):
             super().__init__()
@@ -108,7 +114,6 @@ if st.session_state.logged_in:
             x = x.view(x.size(0), -1)
             return self.fc(x)
 
-    # LOAD MODEL
     @st.cache_resource
     def load_model():
         model = SimpleCNN()
@@ -118,29 +123,30 @@ if st.session_state.logged_in:
 
     model = load_model()
 
+    # ----------------------------
     # PREDICT
     def predict(image):
         img = transform(image).unsqueeze(0)
 
         with torch.no_grad():
-            logits = model(img)
-            probs = F.softmax(logits, dim=1)
-
+            probs = F.softmax(model(img), dim=1)
             pred = torch.argmax(probs, dim=1).item()
             conf = probs[0][pred].item()
 
         return pred, conf
 
+    # ----------------------------
     # UPLOAD
     uploaded_file = st.file_uploader("Upload Image", type=["jpg","jpeg","png"])
 
-    if uploaded_file is not None:
+    if uploaded_file:
         image = Image.open(uploaded_file).convert("RGB")
-        pred, conf = predict(image)
 
         st.image(image, caption="Uploaded Image", use_container_width=True)
 
-        # OUTPUT FIX
+        pred, conf = predict(image)
+
+        # Confidence check
         if conf < 0.6:
             st.warning("⚠️ Low confidence")
 
@@ -149,6 +155,7 @@ if st.session_state.logged_in:
         else:
             st.success(f"✅ Real Image ({conf*100:.2f}%)")
 
+    # ----------------------------
     # LOGOUT
     if st.button("Logout"):
         st.session_state.logged_in = False
